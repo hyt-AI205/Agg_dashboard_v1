@@ -1,0 +1,3468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Social Intelligence Dashboard</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-cloud@1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-geo@4.2.7/build/index.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+
+  <!-- Google Fonts - Distinctive Typography -->
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --primary: #0ea5e9;
+      --primary-dark: #0284c7;
+      --secondary: #8b5cf6;
+      --accent: #f59e0b;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --error: #ef4444;
+      --bg-main: #0f172a;
+      --bg-card: #1e293b;
+      --bg-hover: #334155;
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --gradient-2: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      --gradient-3: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      --gradient-4: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Bricolage Grotesque', -apple-system, system-ui, sans-serif;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Animated background gradient */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+                  radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+      animation: gradientShift 15s ease infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    @keyframes gradientShift {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(180deg); }
+    }
+
+    .dashboard-container {
+      position: relative;
+      z-index: 1;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 0;
+    }
+
+    /* ============================================================
+       HEADER & NAVIGATION
+       ============================================================ */
+
+    .header {
+      background: rgba(30, 41, 59, 0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 1.5rem 2rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      animation: slideDown 0.6s ease;
+    }
+
+    @keyframes slideDown {
+      from { transform: translateY(-100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .brand-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--gradient-3);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      animation: pulse 3s ease infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    .brand-text h1 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .brand-text p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .time-filters {
+      display: flex;
+      gap: 0.5rem;
+      background: var(--bg-card);
+      padding: 0.375rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    .time-filters button {
+      padding: 0.5rem 1.25rem;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: 'Bricolage Grotesque', sans-serif;
+    }
+
+    .time-filters button.active {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
+    }
+
+    .time-filters button:hover:not(.active) {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .refresh-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: rgba(16, 185, 129, 0.1);
+      border-radius: 8px;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      font-size: 0.875rem;
+      color: var(--success);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .refresh-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: blink 2s ease infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* ============================================================
+       TAB NAVIGATION
+       ============================================================ */
+
+    .tab-navigation {
+      background: rgba(30, 41, 59, 0.6);
+      backdrop-filter: blur(10px);
+      padding: 0 2rem;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 85px;
+      z-index: 99;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tab-button {
+      padding: 1rem 2rem;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      white-space: nowrap;
+      font-family: 'Bricolage Grotesque', sans-serif;
+      border-bottom: 3px solid transparent;
+    }
+
+    .tab-button:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .tab-button.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+      background: rgba(14, 165, 233, 0.1);
+    }
+
+    .tab-button .tab-icon {
+      margin-right: 0.5rem;
+    }
+
+    /* ============================================================
+       TAB CONTENT
+       ============================================================ */
+
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.5s ease;
+      padding: 2rem;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ============================================================
+       METRIC CARDS
+       ============================================================ */
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.75rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--gradient-3);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .metric-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+      border-color: var(--primary);
+    }
+
+    .metric-card:hover::before {
+      opacity: 1;
+    }
+
+    .metric-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1.25rem;
+    }
+
+    .metric-info .metric-title {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .metric-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      background: rgba(14, 165, 233, 0.1);
+      color: var(--primary);
+    }
+
+    .metric-value {
+      font-size: 2.75rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: -0.02em;
+    }
+
+    .metric-change {
+      font-size: 0.875rem;
+      color: var(--success);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .metric-change.negative {
+      color: var(--error);
+    }
+
+    /* ============================================================
+       CHARTS
+       ============================================================ */
+
+    .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+      }
+
+
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.75rem;
+      transition: all 0.3s ease;
+    }
+
+    .chart-card:hover {
+      border-color: var(--primary);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .chart-header h3 {
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .chart-badge {
+      padding: 0.375rem 0.875rem;
+      background: rgba(14, 165, 233, 0.1);
+      color: var(--primary);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 320px;
+    }
+
+
+    /* ============================================================
+       ACTIVITY FEED
+       ============================================================ */
+
+    .activity-list {
+      max-height: 500px;
+      overflow-y: auto;
+      padding-right: 0.5rem;
+    }
+
+    .activity-list::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .activity-list::-webkit-scrollbar-track {
+      background: var(--bg-main);
+      border-radius: 3px;
+    }
+
+    .activity-list::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    .activity-list::-webkit-scrollbar-thumb:hover {
+      background: var(--primary);
+    }
+
+    .activity-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 12px;
+      margin-bottom: 0.75rem;
+      border: 1px solid transparent;
+      transition: all 0.3s ease;
+    }
+
+    .activity-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border);
+    }
+
+    .activity-item.new {
+      background: rgba(14, 165, 233, 0.1);
+      border-color: var(--primary);
+      animation: slideInLeft 0.5s ease;
+    }
+
+    @keyframes slideInLeft {
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-success { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    .status-warning { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+    .status-error { background: var(--error); box-shadow: 0 0 8px var(--error); }
+
+    .activity-details {
+      flex: 1;
+    }
+
+    .activity-profile {
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .activity-meta {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+/* ============================================================
+   DATABASE STATS (COMPACT VERSION)
+   ============================================================ */
+
+.db-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1rem;                 /* reduced */
+  margin-bottom: 1rem;       /* reduced */
+}
+
+.db-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;       /* slightly smaller */
+  padding: 1rem;             /* reduced from 1.75rem */
+  transition: all 0.3s ease;
+}
+
+.db-card:hover {
+  border-color: var(--success);
+  transform: translateY(-2px);
+}
+
+.db-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;    /* reduced */
+}
+
+.db-header h4 {
+  font-size: 1rem;           /* slightly smaller */
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.status-badge {
+  padding: 0.25rem 0.6rem;   /* reduced */
+  border-radius: 6px;
+  font-size: 0.7rem;         /* slightly smaller */
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-healthy {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--success);
+}
+
+.db-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;               /* reduced */
+}
+
+.db-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;   /* reduced */
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;        /* slightly smaller */
+}
+
+.db-stat-label {
+  color: var(--text-muted);
+  font-size: 0.8rem;         /* slightly smaller */
+}
+
+.db-stat-value {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 0.8rem;         /* slightly smaller */
+  font-family: 'JetBrains Mono', monospace;
+}
+
+    /* ============================================================
+       LOADING & STATES
+       ============================================================ */
+
+    .loading {
+      text-align: center;
+      padding: 4rem 2rem;
+    }
+
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-top: 4px solid var(--primary);
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1.5rem;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .error-message {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--error);
+      padding: 1.25rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+    }
+
+    /* ============================================================
+       RESPONSIVE
+       ============================================================ */
+
+    @media (max-width: 768px) {
+      .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .charts-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .tab-navigation {
+        top: auto;
+        position: relative;
+      }
+
+      .metrics-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ============================================================
+       WORD CLOUD SPECIFIC
+       ============================================================ */
+
+    #brand-cloud {
+      width: 100%;
+      height: 320px;
+    }
+
+    /* ============================================================
+       SPECIAL ANIMATIONS
+       ============================================================ */
+
+    @keyframes shimmer {
+      0% { background-position: -1000px 0; }
+      100% { background-position: 1000px 0; }
+    }
+
+    .shimmer {
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.1) 50%,
+        transparent 100%
+      );
+      background-size: 1000px 100%;
+      animation: shimmer 2s infinite;
+    }
+
+    /* ============================================================
+   TARGET MANAGEMENT TAB SPECIFIC STYLES
+   ============================================================ */
+
+#targets-tab .grid-container {
+  display: grid;
+  animation: fadeIn 0.5s ease;
+}
+
+#targets-tab .card-body {
+  padding: 1.75rem;
+}
+
+#targets-tab .view-toggle label:hover {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+}
+
+#targets-tab .scrollable-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+#targets-tab .scrollable-list::-webkit-scrollbar-track {
+  background: var(--bg-main);
+  border-radius: 4px;
+}
+
+#targets-tab .scrollable-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+#targets-tab .scrollable-list::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+.target {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  transition: all 0.3s ease;
+  animation: slideInTarget 0.4s ease;
+}
+
+@keyframes slideInTarget {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.target:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.target.paused {
+  opacity: 0.6;
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.target-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.target-value {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.95rem;
+}
+
+.badge-tiktok {
+  background: #000000;
+  color: white;
+  padding: 0.375rem 0.875rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-instagram {
+  background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
+  color: white;
+  padding: 0.375rem 0.875rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-facebook {
+  background: #1877F2;
+  color: white;
+  padding: 0.375rem 0.875rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-active {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--success);
+  padding: 0.375rem 0.875rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.badge-paused {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--warning);
+  padding: 0.375rem 0.875rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.clear-search.visible {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.no-results {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--error);
+}
+
+.no-results-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+/* Position it in the top-right corner */
+.chart-slider {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 120px; /* small width */
+  opacity: 0.8;
+}
+
+.chart-slider:hover {
+  opacity: 1;
+}
+
+/* Base slider */
+.chart-slider input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  cursor: pointer;
+  background: transparent;
+}
+
+/* Track */
+.chart-slider input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--bg-hover);
+  border-radius: 2px;
+}
+
+.chart-slider input[type="range"]::-moz-range-track {
+  height: 4px;
+  background: var(--bg-hover);
+  border-radius: 2px;
+}
+
+/* Thumb */
+.chart-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px; /* center thumb */
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  transition: transform 0.2s ease;
+}
+
+.chart-slider input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+
+/* Optional subtle hover */
+.chart-slider input[type="range"]:hover::-webkit-slider-thumb {
+  transform: scale(1.1);
+}
+
+
+
+
+
+
+ /* ── Config Tab Scoped Styles ───────────────────────── */
+  .cfg-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .cfg-header-left h2 {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0 0 0.2rem;
+    letter-spacing: -0.5px;
+  }
+  .cfg-header-left p {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+
+  /* ── Config Cards Grid ──────────────────────────────── */
+  .cfg-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 1.5rem;
+    align-items: start;
+  }
+  .cfg-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .cfg-card-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+  }
+  .cfg-card-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .cfg-card-icon.blue  { background: rgba(99,102,241,0.15); }
+  .cfg-card-icon.green { background: rgba(16,185,129,0.15); }
+  .cfg-card-icon.amber { background: rgba(245,158,11,0.15); }
+  .cfg-card-icon.pink  { background: rgba(236,72,153,0.15); }
+
+  .cfg-card-title { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); }
+  .cfg-card-sub   { font-size: 0.72rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; margin-top: 0.1rem; }
+
+  .cfg-badge {
+    margin-left: auto;
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+  .cfg-badge.active   { background: rgba(16,185,129,0.15); color: #10b981; }
+  .cfg-badge.inactive { background: rgba(239,68,68,0.15);  color: #ef4444; }
+
+  .cfg-card-body { padding: 1.25rem; }
+
+  /* ── Row / KV ───────────────────────────────────────── */
+  .cfg-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    gap: 1rem;
+  }
+  .cfg-row:last-child { border-bottom: none; }
+  .cfg-key {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    flex-shrink: 0;
+  }
+  .cfg-val {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    text-align: right;
+    word-break: break-all;
+  }
+  .cfg-val.highlight { color: var(--primary); }
+  .cfg-val.muted     { color: var(--text-muted); font-weight: 400; }
+
+  /* ── Section Divider inside card ────────────────────── */
+  .cfg-section-title {
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 1rem 0 0.5rem;
+  }
+  .cfg-section-title:first-child { margin-top: 0; }
+
+  /* ── Platform pill ───────────────────────────────────── */
+  .cfg-platform-block {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .cfg-platform-block:last-child { margin-bottom: 0; }
+  .cfg-platform-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 0.5rem;
+  }
+  .cfg-platform-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+
+  /* ── Provider Tab switcher inside card ──────────────── */
+  .cfg-provider-tabs {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+    background: rgba(255,255,255,0.03);
+    padding: 0.3rem;
+    border-radius: 8px;
+  }
+  .cfg-ptab {
+    flex: 1;
+    padding: 0.4rem 0.6rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-muted);
+    transition: all 0.2s;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .cfg-ptab.active {
+    background: var(--primary);
+    color: white;
+  }
+
+  /* ── Model chip ─────────────────────────────────────── */
+  .cfg-model-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.65rem;
+    background: rgba(99,102,241,0.15);
+    color: #818cf8;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .cfg-default-pill {
+    padding: 0.15rem 0.5rem;
+    background: rgba(16,185,129,0.15);
+    color: #10b981;
+    border-radius: 20px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── Last updated bar ───────────────────────────────── */
+  .cfg-updated-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.25rem;
+    background: rgba(255,255,255,0.02);
+    border-top: 1px solid var(--border);
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── Schedule timeline ──────────────────────────────── */
+  .cfg-schedule-visual {
+    display: flex;
+    gap: 0.35rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .cfg-hour-chip {
+    padding: 0.25rem 0.55rem;
+    border-radius: 6px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(99,102,241,0.12);
+    color: #818cf8;
+    border: 1px solid rgba(99,102,241,0.2);
+  }
+
+  /* ── Temp gauge bar ─────────────────────────────────── */
+  .cfg-temp-bar-wrap {
+    margin-top: 0.3rem;
+    height: 4px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .cfg-temp-bar {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
+    transition: width 0.6s ease;
+  }
+
+  /* ── Loading / Error ────────────────────────────────── */
+  .cfg-loading {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--text-muted);
+  }
+  .cfg-loading-spinner {
+    width: 36px; height: 36px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: cfg-spin 0.8s linear infinite;
+    margin: 0 auto 1rem;
+  }
+  .cfg-error-box {
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.25);
+    border-radius: 10px;
+    padding: 1.25rem;
+    text-align: center;
+    color: #ef4444;
+    font-size: 0.85rem;
+  }
+
+  /* ── Responsive ─────────────────────────────────────── */
+  @media (max-width: 768px) {
+    .cfg-grid { grid-template-columns: 1fr; }
+  }
+
+
+
+
+
+
+/* ── Incomplete Posts Card ── */
+.incomplete-tabs {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.incomplete-tab-btn {
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #333);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.incomplete-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.incomplete-tab-btn.active {
+  background: var(--primary, #6366f1);
+  border-color: var(--primary, #6366f1);
+  color: #fff;
+}
+
+/* ── Scrollable Wrapper ── */
+.incomplete-table-wrapper {
+  height: 400px;  /* fixed, not max-height */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border, #2a2a2a);
+}
+
+.incomplete-table-wrapper::-webkit-scrollbar {
+  width: 8px;
+}
+
+.incomplete-table-wrapper::-webkit-scrollbar-track {
+  background: var(--bg-main);
+  border-radius: 4px;
+}
+
+.incomplete-table-wrapper::-webkit-scrollbar-thumb {
+  background: var(--border, #444);
+  border-radius: 4px;
+}
+
+.incomplete-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--primary, #6366f1);
+}
+
+/* ── Table ── */
+.incomplete-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.incomplete-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card-bg, #1a1a1a);
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border, #2a2a2a);
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.incomplete-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border, #2a2a2a);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.incomplete-table tr:last-child td {
+  border-bottom: none;
+}
+
+.incomplete-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.incomplete-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2rem !important;
+}
+
+
+
+
+
+  </style>
+</head>
+<body>
+  <div class="dashboard-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <div class="brand">
+          <div class="brand-icon">📊</div>
+          <div class="brand-text">
+            <h1>Social Intelligence</h1>
+            <p>Real-time Analytics Dashboard</p>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <div class="time-filters">
+            <button class="active" data-range="24h">24 Hours</button>
+            <button data-range="7d">7 Days</button>
+            <button data-range="30d">30 Days</button>
+          </div>
+
+          <div class="refresh-indicator">
+            <div class="refresh-dot"></div>
+            <span>Live</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Tab Navigation -->
+
+
+    <nav class="tab-navigation">
+      <div class="tabs">
+        <button class="tab-button active" data-tab="overview">
+          <span class="tab-icon">📈</span>
+          Overview
+        </button>
+        <button class="tab-button" data-tab="scraping">
+          <span class="tab-icon">🔍</span>
+          Scraping Analytics
+        </button>
+        <button class="tab-button" data-tab="offers">
+          <span class="tab-icon">💎</span>
+          Offer Intelligence
+        </button>
+        <button class="tab-button" data-tab="targets">
+          <span class="tab-icon">🎯</span>
+          Target Management
+        </button>
+        <button class="tab-button" data-tab="config">
+          <span class="tab-icon">⚙️</span>
+          Configuration
+        </button>
+      </div>
+    </nav>
+
+    <!-- Tab Content: Overview -->
+<div class="tab-content active" id="overview-tab">
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-header">
+        <div class="metric-info">
+          <div class="metric-title">Total Posts</div>
+        </div>
+        <div class="metric-icon">📝</div>
+      </div>
+      <div class="metric-value" id="overview-total-posts">-</div>
+      <div class="metric-change">↑ Scraped posts</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-header">
+        <div class="metric-info">
+          <div class="metric-title">Valid Offers</div>
+        </div>
+        <div class="metric-icon">🎁</div>
+      </div>
+      <div class="metric-value" id="overview-total-offers">-</div>
+      <div class="metric-change">↑ Extracted offers</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-header">
+        <div class="metric-info">
+          <div class="metric-title">Active Profiles</div>
+        </div>
+        <div class="metric-icon">👥</div>
+      </div>
+      <div class="metric-value" id="overview-active-profiles">-</div>
+      <div class="metric-change">↑ Monitoring</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-header">
+        <div class="metric-info">
+          <div class="metric-title">Success Rate</div>
+        </div>
+        <div class="metric-icon">✨</div>
+      </div>
+      <div class="metric-value" id="overview-success-rate">-</div>
+      <div class="metric-change">↑ Extraction efficiency</div>
+    </div>
+  </div>
+
+  <!-- Alert Cards -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+    <!-- Failed Scrapes Alert -->
+    <div class="metric-card" id="failed-scrapes-alert" style="border-left: 4px solid var(--error);">
+      <div class="metric-header">
+        <div class="metric-info">
+          <div class="metric-title">❌ Failed Scrapes</div>
+        </div>
+      </div>
+      <div class="metric-value" style="color: var(--error);" id="alert-failed-count">0</div>
+      <div class="metric-change" style="color: var(--text-muted);">Posts with missing content</div>
+    </div>
+
+    <!-- Inactive Offers Alert -->
+    <div class="metric-card" id="inactive-offers-alert" style="border-left: 4px solid var(--warning);">
+      <div class="metric-header">
+        <div class="metric-info">
+          <div class="metric-title">🚫 Inactive Offers</div>
+        </div>
+      </div>
+      <div class="metric-value" style="color: var(--warning);" id="alert-inactive-count">0</div>
+      <div class="metric-change" style="color: var(--text-muted);">Expired/ended offers</div>
+    </div>
+
+    <!-- Stale Profiles Alert -->
+    <div class="metric-card" id="stale-profiles-alert" style="border-left: 4px solid var(--accent);">
+      <div class="metric-header">
+        <div class="metric-info">
+          <div class="metric-title">⏰ Stale Profiles</div>
+        </div>
+      </div>
+      <div class="metric-value" style="color: var(--accent);" id="alert-stale-count">0</div>
+      <div class="metric-change" style="color: var(--text-muted);">Not scraped in 24h</div>
+    </div>
+  </div>
+  <!-- 🚨 END OF ALERT CARDS 🚨 -->
+
+  <!-- First row: Profile Performance + Extraction Success Rate -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+    <!-- Profile Performance Chart -->
+    <div class="chart-card">
+      <div class="chart-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h3>Profile Performance</h3>
+          <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.25rem;">
+            Total Posts vs Valid Offers by Profile
+          </p>
+        </div>
+
+        <!-- Compact Slider in Top Right -->
+        <div style="display: flex; align-items: center; gap: 0.75rem; background: rgba(255, 255, 255, 0.03); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border);">
+          <label style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600; white-space: nowrap;">
+            Show: <span id="profile-count-display" style="color: var(--primary); font-family: 'JetBrains Mono', monospace; font-size: 0.875rem;">10</span>
+            <span id="profile-max-display" style="color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;"></span>
+          </label>
+          <input
+            type="range"
+            id="profile-slider"
+            min="1"
+            max="100"
+            value="10"
+            step="1"
+            style="width: 120px; height: 6px; background: var(--bg-hover); border-radius: 3px; outline: none; accent-color: var(--primary); cursor: pointer;"
+          >
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <canvas id="profile-performance-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Extraction Success Rate Over Time -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3>AI Extraction Success Rate Over Time</h3>
+      </div>
+      <div class="chart-container">
+        <canvas id="extraction-timeline-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Second row: Average Confidence Score + Confidence Distribution -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+    <!-- Confidence Score Gauge -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3>Average Confidence Score</h3>
+      </div>
+      <div class="chart-container">
+        <canvas id="confidence-gauge-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Confidence Distribution -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3>Confidence Distribution</h3>
+      </div>
+      <div class="chart-container">
+        <canvas id="confidence-distribution-chart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- END Tab Content: Overview -->
+
+
+    <!-- Tab Content: Scraping Analytics -->
+    <div class="tab-content" id="scraping-tab">
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>Posts by Platform</h3>
+            <span class="chart-badge">Distribution</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="platform-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>Top Profiles</h3>
+            <span class="chart-badge">Volume</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="profile-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>Profile Success Rate</h3>
+            <span class="chart-badge">Performance</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="profile-success-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>Recent Activity</h3>
+            <span class="chart-badge">Timeline</span>
+          </div>
+          <div class="activity-list" id="scraping-activity"></div>
+        </div>
+      </div>
+
+<!-- Incomplete Posts Section -->
+<div class="chart-card" style="grid-column: 1 / -1; margin-top: 1rem;">
+  <div class="chart-header">
+    <h3>Posts by Content Type</h3>
+    <span class="chart-badge" id="incomplete-total-badge">0 posts</span>
+  </div>
+
+  <div class="incomplete-tabs">
+    <button class="incomplete-tab-btn active" id="btn-text-only" onclick="switchIncompleteTab('text_only')">
+      📝 Text Only
+    </button>
+    <button class="incomplete-tab-btn" id="btn-image-only" onclick="switchIncompleteTab('image_only')">
+      🖼️ Image Only
+    </button>
+    <button class="incomplete-tab-btn" id="btn-video-only" onclick="switchIncompleteTab('video_only')">
+      🎬 Video Only
+    </button>
+  </div>
+
+  <div class="incomplete-table-wrapper" id="incomplete-posts-table-wrapper">
+    <table class="incomplete-table" id="incomplete-posts-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>MongoDB ID</th>
+          <th>Post ID</th>
+          <th>Platform</th>
+          <th>Profile</th>
+          <th>Scraped At</th>
+        </tr>
+      </thead>
+      <tbody id="incomplete-posts-body">
+        <tr>
+          <td colspan="6" class="incomplete-empty">Loading...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+      <div class="db-stats-grid" id="db-stats-container"></div>
+    </div>
+    <!-- END of Tab Content: Scraping Analytics -->
+
+
+    <!-- Tab Content: Offer Intelligence -->
+    <div class="tab-content" id="offers-tab">
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>Offers by Category</h3>
+            <span class="chart-badge">Products</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="category-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>Top Brands</h3>
+            <span class="chart-badge">Word Cloud</span>
+          </div>
+          <div class="chart-container">
+            <svg id="brand-cloud"></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>Discount Types</h3>
+            <span class="chart-badge">Analysis</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="discount-types-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>Promo Code Usage</h3>
+            <span class="chart-badge">Conversion</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="promo-code-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>Average Discount Value</h3>
+            <span class="chart-badge">By Currency</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="avg-discount-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>Offer Types</h3>
+            <span class="chart-badge">Breakdown</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="offer-types-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3>Offers by Country</h3>
+          <span class="chart-badge">Geographic</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="country-map-chart"></canvas>
+        </div>
+      </div>
+    </div>
+    <!-- End of Content: Offer Intelligence -->
+
+
+  <!-- Tab Content: Target Management -->
+  <div class="tab-content" id="targets-tab">
+    <div style="display: grid; grid-template-columns: 320px 1fr; gap: 1.5rem; height: calc(100vh - 200px); overflow: hidden;">
+
+      <!-- Left: Add Target Form -->
+      <div style="display: flex; flex-direction: column; gap: 1.5rem; overflow-y: auto;">
+        <div class="card">
+          <div style="background: var(--gradient-1); padding: 1.25rem; border-radius: 16px 16px 0 0;">
+            <h3 style="color: white; margin: 0; font-size: 1.1rem; font-weight: 700;">➕ Add Target</h3>
+          </div>
+          <div style="padding: 1.25rem;">
+            <form method="POST" action="/add">
+              <select name="platform" required style="width: 100%; padding: 0.7rem; margin-bottom: 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-main); color: var(--text-primary); font-size: 0.875rem;">
+                <option value="">Select Platform</option>
+                <option value="tiktok">TikTok</option>
+                <option value="instagram">Instagram</option>
+                <option value="facebook">Facebook</option>
+              </select>
+
+              <input
+                type="text"
+                name="target"
+                placeholder="Username (e.g., @username)"
+                required
+                style="width: 100%; padding: 0.7rem; margin-bottom: 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-main); color: var(--text-primary); font-size: 0.875rem;"
+              >
+
+              <button type="submit" style="width: 100%; padding: 0.7rem; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.875rem;">
+                Add to Monitoring
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="background: rgba(255, 255, 255, 0.02); padding: 1rem; border-radius: 16px;">
+            <h4 style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 0.75rem; font-weight: 700;">FILTER VIEW</h4>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600; color: var(--text-secondary); padding: 0.5rem; border-radius: 6px; font-size: 0.85rem; transition: all 0.2s;">
+                <input type="radio" name="viewFilter" value="active" checked style="width: 16px; height: 16px; margin: 0; accent-color: var(--primary);">
+                <span>Active only</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600; color: var(--text-secondary); padding: 0.5rem; border-radius: 6px; font-size: 0.85rem; transition: all 0.2s;">
+                <input type="radio" name="viewFilter" value="inactive" style="width: 16px; height: 16px; margin: 0; accent-color: var(--primary);">
+                <span>Inactive only</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 600; color: var(--text-secondary); padding: 0.5rem; border-radius: 6px; font-size: 0.85rem; transition: all 0.2s;">
+                <input type="radio" name="viewFilter" value="all" style="width: 16px; height: 16px; margin: 0; accent-color: var(--primary);">
+                <span>All targets</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Targets List -->
+      <div class="card" style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+        <div style="background: var(--gradient-1); padding: 1.25rem; flex-shrink: 0; border-radius: 16px 16px 0 0;">
+          <h3 style="color: white; margin: 0; font-size: 1.1rem; font-weight: 700;">
+            <span id="view-title">Active Targets</span>
+            (<span id="total-count">0</span>)
+          </h3>
+        </div>
+
+        <!-- Search -->
+        <div style="padding: 1rem; background: var(--bg-main); border-bottom: 1px solid var(--border); flex-shrink: 0;">
+          <div style="position: relative;">
+            <span style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); font-size: 1rem;">🔍</span>
+            <input
+              type="text"
+              id="searchInput"
+              placeholder="Search targets..."
+              autocomplete="off"
+              style="width: 100%; padding: 0.6rem 2.25rem; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text-primary); font-size: 0.85rem;"
+            >
+            <button class="clear-search" id="clearSearch" title="Clear" style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: var(--bg-hover); border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 1rem; color: var(--text-muted); display: none; line-height: 1;">×</button>
+          </div>
+          <div class="search-results" id="searchResults" style="margin-top: 0.4rem; font-size: 0.75rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;"></div>
+        </div>
+
+        <!-- List -->
+        <div class="scrollable-list" id="targetsList" style="flex: 1; overflow-y: auto; min-height: 0;">
+          <div style="text-align: center; padding: 3rem 1rem; color: var(--primary);">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">⏳</div>
+            <div style="font-size: 0.9rem;">Loading targets...</div>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination" style="display: none; justify-content: space-between; align-items: center; padding: 0.875rem 1rem; background: var(--bg-main); border-top: 1px solid var(--border); flex-shrink: 0;">
+          <button id="prevPage" onclick="changePage(-1)" style="width: auto; padding: 0.5rem 1rem; font-size: 0.8rem; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 700;">← Prev</button>
+          <span id="pageInfo" style="font-weight: 600; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">Page 1 of 1</span>
+          <button id="nextPage" onclick="changePage(1)" style="width: auto; padding: 0.5rem 1rem; font-size: 0.8rem; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 700;">Next →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="tab-content" id="config-tab">
+    <!-- Tab Content: Configuration -->
+
+      <!-- Header -->
+      <div class="cfg-header">
+        <div class="cfg-header-left">
+          <h2>System Configuration</h2>
+          <p id="cfg-last-fetched">— never fetched</p>
+        </div>
+
+      </div>
+
+
+      <!-- Content area -->
+      <div id="cfg-content">
+        <div class="cfg-loading">
+          <div class="cfg-loading-spinner"></div>
+          <div>Loading configuration…</div>
+        </div>
+      </div>
+
+  </div>
+</div>
+<!-- END config-tab -->
+
+    <!-- END of Tab Content: Target Management -->
+
+  <script>
+    // ============================================================================
+    // GLOBAL STATE & CONFIG
+    // ============================================================================
+
+    let currentTimeRange = '24h';
+
+    let currentTab = 'overview';
+    let charts = {};
+    let previousData = {};
+
+    // ============================================================================
+    // TAB SWITCHING
+    // ============================================================================
+
+    document.querySelectorAll('.tab-button').forEach(button => {
+      button.addEventListener('click', () => {
+        const targetTab = button.dataset.tab;
+
+        // Update tab buttons
+        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+
+        // Update tab content
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        document.getElementById(`${targetTab}-tab`).classList.add('active');
+
+        currentTab = targetTab;
+        loadTabData(targetTab);
+      });
+    });
+
+    // ============================================================================
+    // TIME RANGE SWITCHING
+    // ============================================================================
+
+    document.querySelectorAll('.time-filters button').forEach(button => {
+      button.addEventListener('click', () => {
+        const range = button.dataset.range;
+
+        document.querySelectorAll('.time-filters button').forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+
+        currentTimeRange = range;
+        loadTabData(currentTab);
+      });
+    });
+
+    // ============================================================================
+    // DATA LOADING
+    // ============================================================================
+
+async function loadTabData(tab) {
+  try {
+    switch(tab) {
+      case 'overview':
+        await loadOverviewData();
+        break;
+      case 'scraping':
+        await loadScrapingData();
+        break;
+      case 'offers':
+        await loadOffersData();
+        break;
+      case 'config':
+        await loadConfig();
+        break;
+    }
+  } catch (error) {
+    console.error('Error loading tab data:', error);
+  }
+}
+
+async function loadOverviewData() {
+  try {
+    const response = await fetch(`/api/dashboard/stats/overview?time_range=${currentTimeRange}&profile_limit=${currentProfileLimit}`);
+    const data = await response.json();
+
+    console.log('Overview data received:', data);
+
+    // Update existing metrics
+    document.getElementById('overview-total-posts').textContent = data.totalPosts || 0;
+    document.getElementById('overview-total-offers').textContent = data.totalOffers || 0;
+    document.getElementById('overview-active-profiles').textContent = data.activeProfiles || 0;
+    document.getElementById('overview-success-rate').textContent = `${data.successRate || 0}%`;
+
+    // Update AI metrics
+    //if (data.aiMetrics) {
+      //document.getElementById('overview-extraction-rate').textContent =
+      //  `${data.aiMetrics.extraction_success_rate}%`;
+     // document.getElementById('overview-avg-confidence').textContent =
+     //   data.aiMetrics.average_confidence.toFixed(2);
+    //  document.getElementById('overview-low-confidence').textContent =
+      //  data.aiMetrics.low_confidence_count;
+   // }
+
+    // Update alerts
+    if (data.alerts) {
+      console.log('Alert data:', data.alerts);
+
+      const failedCount = data.alerts.failedScrapesCount || 0;
+      const inactiveCount = data.alerts.inactiveOffersCount || 0;
+      const staleCount = data.alerts.staleProfilesCount || 0;
+
+      const failedElement = document.getElementById('alert-failed-count');
+      const inactiveElement = document.getElementById('alert-inactive-count');
+      const staleElement = document.getElementById('alert-stale-count');
+
+      if (failedElement) failedElement.textContent = failedCount;
+      if (inactiveElement) {
+        inactiveElement.textContent = inactiveCount;
+      }
+      if (staleElement) staleElement.textContent = staleCount;
+
+      // Highlight alerts if there are issues
+      const failedAlert = document.getElementById('failed-scrapes-alert');
+      const inactiveAlert = document.getElementById('inactive-offers-alert');
+      const staleAlert = document.getElementById('stale-profiles-alert');
+
+      if (failedCount > 0 && failedAlert) {
+        failedAlert.style.animation = 'pulse 2s ease infinite';
+      }
+
+      if (inactiveCount > 0 && inactiveAlert) {
+        inactiveAlert.style.animation = 'pulse 2s ease infinite';
+      }
+
+      if (staleCount > 0 && staleAlert) {
+        staleAlert.style.animation = 'pulse 2s ease infinite';
+      }
+    }
+
+    // Update slider max value dynamically
+    if (data.totalProfiles) {
+      maxProfiles = data.totalProfiles;
+      profileSlider.max = maxProfiles;
+      profileMaxDisplay.textContent = ` / ${maxProfiles}`;
+
+      if (currentProfileLimit > maxProfiles) {
+        currentProfileLimit = maxProfiles;
+        profileSlider.value = maxProfiles;
+        profileCountDisplay.textContent = maxProfiles;
+      }
+    }
+
+    // Update activity
+    updateActivityList('overview-activity', data.recentActivity || []);
+
+    // Update profile performance chart
+    updateProfilePerformanceChart(data.profilePerformance || []);
+
+    // Update AI extraction charts
+    if (data.aiMetrics) {
+      updateExtractionTimelineChart(data.aiMetrics.extraction_over_time || []);
+      updateConfidenceGauge(data.aiMetrics.average_confidence || 0);
+      updateConfidenceDistributionChart(data.aiMetrics);
+    }
+  } catch (error) {
+    console.error('Error loading overview:', error);
+  }
+}
+
+let incompletePostsData = { text_only: [], image_only: [], video_only: [] };
+let currentIncompleteTab = "text_only";
+
+function switchIncompleteTab(tab) {
+  currentIncompleteTab = tab;
+  document.getElementById("btn-text-only").classList.toggle("active", tab === "text_only");
+  document.getElementById("btn-image-only").classList.toggle("active", tab === "image_only");
+  document.getElementById("btn-video-only").classList.toggle("active", tab === "video_only");
+  renderIncompleteTable(incompletePostsData[tab]);
+}
+
+function renderIncompleteTable(posts) {
+  const tbody = document.getElementById("incomplete-posts-body");
+  if (!posts || posts.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--text-muted);">No posts found ✅</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = posts.map((p, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td style="font-family: monospace; font-size: 0.78rem;">${p._id}</td>
+      <td title="${p.post_id}">${p.post_id?.length > 40 ? p.post_id.substring(0, 40) + "…" : p.post_id || "-"}</td>
+      <td>${p.platform || "-"}</td>
+      <td>${p.profile || "-"}</td>
+      <td>${p.scraped_at ? new Date(p.scraped_at).toLocaleString() : "-"}</td>
+    </tr>
+  `).join("");
+}
+
+function updateIncompletePostsUI(data) {
+  if (!data) return;
+  incompletePostsData = data;
+  const total = data.total || 0;
+  document.getElementById("incomplete-total-badge").textContent = `${total} post${total !== 1 ? "s" : ""}`;
+  renderIncompleteTable(incompletePostsData[currentIncompleteTab]);
+}
+
+
+
+async function loadScrapingData() {
+  try {
+    const response = await fetch(`/api/dashboard/stats/scraping?time_range=${currentTimeRange}`);
+    const data = await response.json();
+
+    // Update charts
+    updatePlatformChart(data.byPlatform || {});
+    updateProfileChart(data.byProfile || {});
+    updateProfileSuccessChart(data.profileSuccessRate || {});
+
+    // Update activity
+    updateActivityList('scraping-activity', data.recentActivity || []);
+
+    // Update incomplete posts
+    updateIncompletePostsUI(data.incompletePosts || { missing_images: [], missing_video: [], total: 0 });
+
+    // Load database stats
+    await loadDatabaseStats();
+  } catch (error) {
+    console.error('Error loading scraping data:', error);
+  }
+}
+
+    async function loadOffersData() {
+      try {
+        const response = await fetch(`/api/dashboard/stats/offers?time_range=${currentTimeRange}`);
+        const data = await response.json();
+
+        // Update charts
+        updateCategoryChart(data.offersByCategory || {});
+        updateBrandCloud(data.topBrands || {});
+        updateDiscountTypesChart(data.discountTypesDistribution || {});
+        updatePromoCodeChart(data.promoCodeUsage || {});
+        updateAvgDiscountChart(data.avgDiscountValue || {});
+        updateOfferTypesChart(data.offerTypeBreakdown || {});
+        updateCountryMap(data.offersByCountry || {});
+      } catch (error) {
+        console.error('Error loading offers data:', error);
+      }
+    }
+
+    async function loadDatabaseStats() {
+      try {
+        const response = await fetch('/api/dashboard/database-stats');
+        const data = await response.json();
+
+        const container = document.getElementById('db-stats-container');
+        container.innerHTML = '';
+
+        Object.entries(data).forEach(([name, stats]) => {
+          const validCountDisplay = stats.validCount !== undefined
+            ? `<div class="db-stat"><span class="db-stat-label">Valid Offers</span><span class="db-stat-value">${stats.validCount}</span></div>`
+            : '';
+
+          const card = document.createElement('div');
+          card.className = 'db-card';
+          card.innerHTML = `
+            <div class="db-header">
+              <h4>${name}</h4>
+              <span class="status-badge status-healthy">Healthy</span>
+            </div>
+            <div class="db-details">
+              <div class="db-stat">
+                <span class="db-stat-label">Documents</span>
+                <span class="db-stat-value">${stats.count}</span>
+              </div>
+              ${validCountDisplay}
+              <div class="db-stat">
+                <span class="db-stat-label">Size</span>
+                <span class="db-stat-value">${stats.size}</span>
+              </div>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      } catch (error) {
+        console.error('Error loading database stats:', error);
+      }
+    }
+
+    // ============================================================================
+    // CHART UPDATES
+    // ============================================================================
+let extractionTimelineChart = null;
+let confidenceGaugeChart = null;
+let confidenceDistributionChart = null;
+
+function updateExtractionTimelineChart(timelineData) {
+  const ctx = document.getElementById('extraction-timeline-chart');
+  if (!ctx) return;
+
+  if (extractionTimelineChart) {
+    extractionTimelineChart.destroy();
+  }
+
+  const labels = timelineData.map(item => {
+    const date = new Date(item.timestamp);
+    if (currentTimeRange === '24h') {
+      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    }
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  });
+
+  extractionTimelineChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Success Rate (%)',
+          data: timelineData.map(item => item.success_rate),
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          tension: 0.4,
+          fill: true,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Avg Confidence',
+          data: timelineData.map(item => item.avg_confidence * 100),
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          tension: 0.4,
+          fill: true,
+          yAxisID: 'y'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 100,
+          ticks: {
+            callback: function(value) {
+              return value + '%';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function updateConfidenceGauge(avgConfidence) {
+  const ctx = document.getElementById('confidence-gauge-chart');
+  if (!ctx) return;
+
+  if (confidenceGaugeChart) {
+    confidenceGaugeChart.destroy();
+  }
+
+  const percentage = avgConfidence * 100;
+
+  confidenceGaugeChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [percentage, 100 - percentage],
+        backgroundColor: [
+          percentage >= 90 ? '#10b981' : percentage >= 80 ? '#f59e0b' : '#ef4444',
+          '#e5e7eb'
+        ],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      circumference: 180,
+      rotation: -90,
+      cutout: '75%',
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          enabled: false
+        }
+      }
+    },
+    plugins: [{
+      id: 'gaugeText',
+      afterDraw: (chart) => {
+        const ctx = chart.ctx;
+        const centerX = chart.width / 2;
+        const centerY = chart.height / 1.5;
+
+        ctx.save();
+        ctx.font = 'bold 32px Arial';
+        ctx.fillStyle = '#1f2937';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(avgConfidence.toFixed(2), centerX, centerY - 10);
+
+        ctx.font = '14px Arial';
+        ctx.fillStyle = '#6b7280';
+        ctx.fillText('Confidence', centerX, centerY + 20);
+        ctx.restore();
+      }
+    }]
+  });
+}
+
+function updateConfidenceDistributionChart(aiMetrics) {
+  const ctx = document.getElementById('confidence-distribution-chart');
+  if (!ctx) return;
+
+  if (confidenceDistributionChart) {
+    confidenceDistributionChart.destroy();
+  }
+
+  const distribution = aiMetrics.confidence_distribution || {};
+
+  confidenceDistributionChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(distribution),
+      datasets: [{
+        label: 'Offers Count',
+        data: Object.values(distribution),
+        backgroundColor: [
+          '#ef4444', // 0.0-0.3 (red)
+          '#f97316', // 0.3-0.5 (orange)
+          '#f59e0b', // 0.5-0.7 (amber)
+          '#eab308', // 0.7-0.8 (yellow)
+          '#84cc16', // 0.8-0.9 (lime)
+          '#10b981'  // 0.9-1.0 (green)
+        ],
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return `Count: ${context.parsed.y}`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            precision: 0
+          }
+        }
+      }
+    }
+  });
+}
+ // ============================================================================
+// PROFILE PERFORMANCE CHART
+// ============================================================================
+
+let profilePerformanceChart = null;
+let currentProfileLimit = 10;
+let maxProfiles = 50;
+
+// Slider event listener
+const profileSlider = document.getElementById('profile-slider');
+const profileCountDisplay = document.getElementById('profile-count-display');
+const profileMaxDisplay = document.getElementById('profile-max-display');
+
+if (profileSlider) {
+  profileSlider.addEventListener('input', function() {
+    currentProfileLimit = parseInt(this.value);
+    profileCountDisplay.textContent = currentProfileLimit;
+  });
+
+  profileSlider.addEventListener('change', function() {
+    // Reload data when slider is released
+    loadOverviewData();
+  });
+}
+
+
+
+
+
+    function updateProfilePerformanceChart(data) {
+      const ctx = document.getElementById('profile-performance-chart');
+      if (!ctx) return;
+
+      if (profilePerformanceChart) profilePerformanceChart.destroy();
+
+      const profiles = data.map(d => d.profile);
+      const totalPosts = data.map(d => d.total_posts);
+      const validOffers = data.map(d => d.valid_offers);
+
+      profilePerformanceChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: profiles,
+          datasets: [
+            {
+              label: 'Total Posts',
+              data: totalPosts,
+              backgroundColor: 'rgba(14, 165, 233, 0.7)',
+              borderColor: '#0ea5e9',
+              borderWidth: 2,
+              borderRadius: 6,
+            },
+            {
+              label: 'Valid Offers',
+              data: validOffers,
+              backgroundColor: 'rgba(16, 185, 129, 0.7)',
+              borderColor: '#10b981',
+              borderWidth: 2,
+              borderRadius: 6,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                color: '#cbd5e1',
+                padding: 15,
+                font: {
+                  size: 13,
+                  family: 'Bricolage Grotesque',
+                  weight: '600'
+                },
+                usePointStyle: true,
+                pointStyle: 'circle'
+              }
+            },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#f8fafc',
+              bodyColor: '#cbd5e1',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 12,
+              displayColors: true,
+              callbacks: {
+                afterLabel: function(context) {
+                  const index = context.dataIndex;
+                  const successRate = data[index].success_rate;
+                  return ``;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: '#334155',
+                drawBorder: false
+              },
+              ticks: {
+                color: '#94a3b8',
+                font: {
+                  family: 'JetBrains Mono',
+                  size: 11
+                }
+              }
+            },
+            x: {
+              grid: {
+                display: false
+              },
+              ticks: {
+                color: '#94a3b8',
+                font: {
+                  family: 'Bricolage Grotesque',
+                  size: 11
+                },
+                maxRotation: 45,
+                minRotation: 45
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updatePlatformChart(data) {
+      const ctx = document.getElementById('platform-chart');
+      if (!ctx) return;
+
+      if (charts.platform) charts.platform.destroy();
+
+      const labels = Object.keys(data);
+      const values = Object.values(data);
+
+      charts.platform = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: ['#0ea5e9', '#8b5cf6', '#f59e0b', '#10b981'],
+            borderWidth: 0,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#cbd5e1',
+                padding: 20,
+                font: { size: 13, family: 'Bricolage Grotesque' }
+              }
+            },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#f8fafc',
+              bodyColor: '#cbd5e1',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 12,
+              displayColors: true,
+              callbacks: {
+                label: (context) => {
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = ((context.parsed / total) * 100).toFixed(1);
+                  return `${context.label}: ${context.parsed} (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateProfileChart(data) {
+      const ctx = document.getElementById('profile-chart');
+      if (!ctx) return;
+
+      if (charts.profile) charts.profile.destroy();
+
+      const labels = Object.keys(data);
+      const values = Object.values(data);
+
+      charts.profile = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Posts',
+            data: values,
+            backgroundColor: '#0ea5e9',
+            borderRadius: 8,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#f8fafc',
+              bodyColor: '#cbd5e1',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 12,
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: '#334155' },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono' } }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: '#94a3b8', font: { family: 'Bricolage Grotesque' } }
+            }
+          }
+        }
+      });
+    }
+
+    function updateProfileSuccessChart(data) {
+      const ctx = document.getElementById('profile-success-chart');
+      if (!ctx) return;
+
+      if (charts.profileSuccess) charts.profileSuccess.destroy();
+
+      const profiles = Object.keys(data);
+      const rates = profiles.map(p => data[p].rate);
+
+      charts.profileSuccess = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: profiles,
+          datasets: [{
+            label: 'Success Rate (%)',
+            data: rates,
+            backgroundColor: '#10b981',
+            borderRadius: 8,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#f8fafc',
+              bodyColor: '#cbd5e1',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 12,
+              callbacks: {
+                label: (context) => `${context.parsed.x.toFixed(1)}%`
+              }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              max: 100,
+              grid: { color: '#334155' },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono' } }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { color: '#94a3b8', font: { family: 'Bricolage Grotesque' } }
+            }
+          }
+        }
+      });
+    }
+
+    function updateCategoryChart(data) {
+      const ctx = document.getElementById('category-chart');
+      if (!ctx) return;
+
+      if (charts.category) charts.category.destroy();
+
+      const labels = Object.keys(data);
+      const values = Object.values(data);
+
+      charts.category = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: ['#0ea5e9', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#06b6d4'],
+            borderWidth: 0,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#cbd5e1',
+                padding: 15,
+                font: { size: 12, family: 'Bricolage Grotesque' }
+              }
+            },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#f8fafc',
+              bodyColor: '#cbd5e1',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 12,
+            }
+          }
+        }
+      });
+    }
+
+    function updateBrandCloud(data) {
+      const svg = d3.select('#brand-cloud');
+      svg.selectAll('*').remove();
+
+      const words = Object.entries(data).map(([text, count]) => ({
+        text,
+        size: Math.max(12, Math.min(60, count * 2))
+      }));
+
+      const layout = d3.layout.cloud()
+        .size([svg.node().clientWidth || 500, 320])
+        .words(words)
+        .padding(8)
+        .rotate(() => (~~(Math.random() * 2) * 90))
+        .fontSize(d => d.size)
+        .on('end', draw);
+
+      layout.start();
+
+      function draw(words) {
+        const g = svg.append('g')
+          .attr('transform', `translate(${(svg.node().clientWidth || 500) / 2},160)`);
+
+        g.selectAll('text')
+          .data(words)
+          .enter().append('text')
+          .style('font-size', d => `${d.size}px`)
+          .style('font-family', 'Bricolage Grotesque')
+          .style('font-weight', '700')
+          .style('fill', () => {
+            const colors = ['#0ea5e9', '#8b5cf6', '#f59e0b', '#10b981'];
+            return colors[Math.floor(Math.random() * colors.length)];
+          })
+          .attr('text-anchor', 'middle')
+          .attr('transform', d => `translate(${d.x},${d.y})rotate(${d.rotate})`)
+          .text(d => d.text)
+          .style('opacity', 0)
+          .transition()
+          .duration(1000)
+          .style('opacity', 1);
+      }
+    }
+
+    function updateDiscountTypesChart(data) {
+      const ctx = document.getElementById('discount-types-chart');
+      if (!ctx) return;
+
+      if (charts.discountTypes) charts.discountTypes.destroy();
+
+      const labels = Object.keys(data).map(l => l.replace('_', ' ').toUpperCase());
+      const values = Object.values(data);
+
+      charts.discountTypes = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: ['#0ea5e9', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444'],
+            borderWidth: 0,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#cbd5e1',
+                padding: 15,
+                font: { size: 12, family: 'Bricolage Grotesque' }
+              }
+            },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#f8fafc',
+              bodyColor: '#cbd5e1',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 12,
+            }
+          }
+        }
+      });
+    }
+
+    function updatePromoCodeChart(data) {
+      const ctx = document.getElementById('promo-code-chart');
+      if (!ctx) return;
+
+      if (charts.promoCode) charts.promoCode.destroy();
+
+      charts.promoCode = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['With Promo Code', 'Without Promo Code'],
+          datasets: [{
+            data: [data.with_promo_code || 0, data.without_promo_code || 0],
+            backgroundColor: ['#10b981', '#475569'],
+            borderWidth: 0,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#cbd5e1',
+                padding: 15,
+                font: { size: 12, family: 'Bricolage Grotesque' }
+              }
+            },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#f8fafc',
+              bodyColor: '#cbd5e1',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 12,
+            }
+          }
+        }
+      });
+    }
+
+    function updateAvgDiscountChart(data) {
+      const ctx = document.getElementById('avg-discount-chart');
+      if (!ctx) return;
+
+      if (charts.avgDiscount) charts.avgDiscount.destroy();
+
+      const currencies = Object.keys(data.by_currency || {});
+      const values = Object.values(data.by_currency || {});
+
+      charts.avgDiscount = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: currencies,
+          datasets: [{
+            label: 'Average Discount',
+            data: values,
+            backgroundColor: '#8b5cf6',
+            borderRadius: 8,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#f8fafc',
+              bodyColor: '#cbd5e1',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 12,
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: '#334155' },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono' } }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: '#94a3b8', font: { family: 'Bricolage Grotesque' } }
+            }
+          }
+        }
+      });
+    }
+
+    function updateOfferTypesChart(data) {
+      const ctx = document.getElementById('offer-types-chart');
+      if (!ctx) return;
+
+      if (charts.offerTypes) charts.offerTypes.destroy();
+
+      const labels = Object.keys(data).map(l => l.replace('_', ' ').toUpperCase());
+      const values = Object.values(data);
+
+      charts.offerTypes = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Count',
+            data: values,
+            backgroundColor: '#f59e0b',
+            borderRadius: 8,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#f8fafc',
+              bodyColor: '#cbd5e1',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 12,
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              grid: { color: '#334155' },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono' } }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { color: '#94a3b8', font: { family: 'Bricolage Grotesque' } }
+            }
+          }
+        }
+      });
+    }
+
+async function updateCountryMap(data) {
+      const ctx = document.getElementById('country-map-chart');
+      if (!ctx) return;
+
+      // For simplicity, using a bar chart. You can implement actual geo chart if needed.
+      if (charts.countryMap) charts.countryMap.destroy();
+
+      const countries = Object.keys(data);
+      const values = Object.values(data);
+
+      charts.countryMap = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: countries,
+          datasets: [{
+            label: 'Offers',
+            data: values,
+            backgroundColor: '#06b6d4',
+            borderRadius: 8,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#f8fafc',
+              bodyColor: '#cbd5e1',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 12,
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              grid: { color: '#334155' },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono' } }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { color: '#94a3b8', font: { family: 'Bricolage Grotesque' } }
+            }
+          }
+        }
+      });
+    }
+
+    // ============================================================================
+    // ACTIVITY LIST
+    // ============================================================================
+
+    function updateActivityList(elementId, activities) {
+      const list = document.getElementById(elementId);
+      if (!list) return;
+
+      list.innerHTML = '';
+
+      activities.forEach((activity, index) => {
+        const statusClass = `status-${activity.status}`;
+        const item = document.createElement('div');
+        item.className = 'activity-item';
+
+        if (index === 0) {
+          item.classList.add('new');
+        }
+
+        item.innerHTML = `
+          <div class="status-dot ${statusClass}"></div>
+          <div class="activity-details">
+            <div class="activity-profile">${activity.profile}</div>
+            <div class="activity-meta">${activity.platform} • ${activity.posts} posts • ${activity.time}</div>
+          </div>
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    // ============================================================================
+    // INITIALIZATION
+    // ============================================================================
+
+    // Initial load
+    loadTabData('overview');
+
+    // Auto-refresh every 30 seconds
+    setInterval(() => {
+      loadTabData(currentTab);
+    }, 30000);
+
+    // ============================================================================
+// TARGET MANAGEMENT TAB
+// ============================================================================
+
+let targetsCurrentPage = 1;
+let targetsTotalPages = 1;
+let targetsCurrentSearch = '';
+let targetsViewFilter = 'active';
+let targetsIsLoading = false;
+
+// Only initialize target management when tab is active
+document.querySelectorAll('.tab-button').forEach(button => {
+  const existingClickHandler = button.onclick;
+  button.addEventListener('click', function() {
+    if (this.dataset.tab === 'targets') {
+      // Initialize target management on first load
+      if (!window.targetsInitialized) {
+        initializeTargetManagement();
+        window.targetsInitialized = true;
+      }
+    }
+  });
+});
+
+function initializeTargetManagement() {
+  const searchInput = document.getElementById('searchInput');
+  const clearButton = document.getElementById('clearSearch');
+  const viewFilterRadios = document.querySelectorAll('#targets-tab input[name="viewFilter"]');
+
+  // Debounce function
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
+  // Search with debounce
+  const debouncedSearch = debounce((searchTerm) => {
+    targetsCurrentSearch = searchTerm;
+    targetsCurrentPage = 1;
+    fetchTargets(1, searchTerm, targetsViewFilter);
+  }, 500);
+
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      const searchTerm = this.value.trim();
+      if (searchTerm) {
+        clearButton.classList.add('visible');
+      } else {
+        clearButton.classList.remove('visible');
+      }
+      debouncedSearch(searchTerm);
+    });
+
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        clearButton.click();
+      }
+    });
+  }
+
+  if (clearButton) {
+    clearButton.addEventListener('click', function() {
+      searchInput.value = '';
+      clearButton.classList.remove('visible');
+      targetsCurrentSearch = '';
+      targetsCurrentPage = 1;
+      fetchTargets(1, '', targetsViewFilter);
+      searchInput.focus();
+    });
+  }
+
+  // View filter
+  viewFilterRadios.forEach(radio => {
+    radio.addEventListener('change', function() {
+      targetsViewFilter = this.value;
+      const viewTitle = document.getElementById('view-title');
+
+      if (targetsViewFilter === 'active') {
+        viewTitle.textContent = 'Active Targets';
+      } else if (targetsViewFilter === 'inactive') {
+        viewTitle.textContent = 'Inactive Targets';
+      } else {
+        viewTitle.textContent = 'All Targets';
+      }
+
+      targetsCurrentPage = 1;
+      fetchTargets(1, targetsCurrentSearch, targetsViewFilter);
+    });
+  });
+
+  // Initial load
+  fetchTargets(1, '', 'active');
+}
+
+// Fetch targets
+async function fetchTargets(page = 1, search = '', filter = 'active') {
+  if (targetsIsLoading) return;
+  targetsIsLoading = true;
+
+  try {
+    const params = new URLSearchParams({
+      page: page,
+      limit: 50,
+      search: search,
+      view_filter: filter
+    });
+
+    const response = await fetch(`/api/targets?${params}`);
+    const data = await response.json();
+
+    targetsCurrentPage = data.page;
+    targetsTotalPages = data.total_pages;
+
+    renderTargets(data.targets, data.total);
+    updateTargetsPagination();
+
+  } catch (error) {
+    console.error('Error fetching targets:', error);
+    const targetsList = document.getElementById('targetsList');
+    targetsList.innerHTML = `
+      <div class="empty-state" style="color: var(--error); text-align: center; padding: 4rem 2rem;">
+        <div style="font-size: 4rem; margin-bottom: 1rem;">❌</div>
+        <div>Error loading targets</div>
+      </div>
+    `;
+  } finally {
+    targetsIsLoading = false;
+  }
+}
+
+// Render targets
+function renderTargets(targets, total) {
+  const totalCount = document.getElementById('total-count');
+  const targetsList = document.getElementById('targetsList');
+  const searchResults = document.getElementById('searchResults');
+
+  totalCount.textContent = total;
+
+  if (targets.length === 0) {
+    if (targetsCurrentSearch) {
+      targetsList.innerHTML = `
+        <div class="no-results">
+          <div class="no-results-icon">🔍</div>
+          <div>No targets found matching "${targetsCurrentSearch}"</div>
+        </div>
+      `;
+    } else {
+      targetsList.innerHTML = `
+        <div class="empty-state" style="text-align: center; padding: 4rem 2rem; color: var(--text-muted);">
+          <div style="font-size: 4rem; margin-bottom: 1rem;">📭</div>
+          <div>No targets yet — add one to get started!</div>
+        </div>
+      `;
+    }
+    searchResults.textContent = '';
+    return;
+  }
+
+  if (targetsCurrentSearch) {
+    searchResults.textContent = `Found ${total} matching target${total !== 1 ? 's' : ''}`;
+  } else {
+    searchResults.textContent = '';
+  }
+
+  let html = '';
+  targets.forEach(t => {
+    const pausedClass = !t.active ? 'paused' : '';
+    const statusBadge = t.active
+      ? '<span class="badge badge-active">Active</span>'
+      : '<span class="badge badge-paused">Paused</span>';
+    const actionButton = t.active
+      ? `<button class="btn-small btn-pause" onclick="toggleTarget('${encodeURIComponent(t.value)}', false)" style="background: var(--warning); padding: 0.5rem 1rem; border-radius: 8px; border: none; color: white; cursor: pointer; font-size: 0.875rem; font-weight: 700;">Pause</button>`
+      : `<button class="btn-small btn-resume" onclick="toggleTarget('${encodeURIComponent(t.value)}', true)" style="background: var(--success); padding: 0.5rem 1rem; border-radius: 8px; border: none; color: white; cursor: pointer; font-size: 0.875rem; font-weight: 700;">Resume</button>`;
+
+    html += `
+      <div class="target ${pausedClass}">
+        <div class="target-info">
+          <span class="badge badge-${t.platform}">${t.platform}</span>
+          <span class="target-value">${t.value}</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          ${statusBadge}
+          ${actionButton}
+          <button class="btn-small btn-delete" onclick="deleteTarget('${encodeURIComponent(t.value)}')" style="background: var(--error); padding: 0.5rem 1rem; border-radius: 8px; border: none; color: white; cursor: pointer; font-size: 0.875rem; font-weight: 700;">
+            Delete
+          </button>
+        </div>
+      </div>
+    `;
+  });
+
+  targetsList.innerHTML = html;
+}
+
+// Update pagination
+function updateTargetsPagination() {
+  const pagination = document.getElementById('pagination');
+  const prevButton = document.getElementById('prevPage');
+  const nextButton = document.getElementById('nextPage');
+  const pageInfo = document.getElementById('pageInfo');
+
+  if (targetsTotalPages <= 1) {
+    pagination.style.display = 'none';
+    return;
+  }
+
+  pagination.style.display = 'flex';
+  pageInfo.textContent = `Page ${targetsCurrentPage} of ${targetsTotalPages}`;
+  prevButton.disabled = targetsCurrentPage === 1;
+  nextButton.disabled = targetsCurrentPage === targetsTotalPages;
+}
+
+// Change page
+function changePage(delta) {
+  const newPage = targetsCurrentPage + delta;
+  if (newPage >= 1 && newPage <= targetsTotalPages) {
+    fetchTargets(newPage, targetsCurrentSearch, targetsViewFilter);
+  }
+}
+
+// Toggle target
+async function toggleTarget(encodedValue, willBeActive) {
+  if (!confirm(willBeActive ? 'Resume this target?' : 'Pause this target?')) return;
+
+  try {
+    const response = await fetch('/toggle/' + encodedValue, { method: 'POST' });
+    if (response.ok) {
+      fetchTargets(targetsCurrentPage, targetsCurrentSearch, targetsViewFilter);
+    } else {
+      alert('Failed to update status');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Network error');
+  }
+}
+
+// Delete target
+async function deleteTarget(encodedValue) {
+  if (!confirm('Permanently delete this target?\nThis cannot be undone.')) return;
+
+  try {
+    const response = await fetch('/delete/' + encodedValue, { method: 'DELETE' });
+    if (response.ok) {
+      fetchTargets(targetsCurrentPage, targetsCurrentSearch, targetsViewFilter);
+    } else {
+      alert('Failed to delete');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Network error');
+  }
+}
+
+
+
+
+(function () {
+  /* ── Helpers ──────────────────────────────────────────── */
+  const $ = id => document.getElementById(id);
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
+  function activeTag(is_active) {
+    return `<span class="cfg-badge ${is_active ? 'active' : 'inactive'}">${is_active ? '● ACTIVE' : '● INACTIVE'}</span>`;
+  }
+
+  function platformDotColor(p) {
+    return { tiktok: '#ee1d52', instagram: '#e1306c', facebook: '#1877f2' }[p] || '#aaa';
+  }
+  function platformEmoji(p) {
+    return { tiktok: '🎵', instagram: '📸', facebook: '👥' }[p] || '🌐';
+  }
+
+  /* ── Render helpers ───────────────────────────────────── */
+  function renderScraperConfig(doc) {
+    const d = doc.data;
+    const providers = d.providers || {};
+
+    const providerSections = Object.entries(providers).map(([provName, provData]) => {
+      const platforms = provData.platforms || {};
+      const platformBlocks = Object.entries(platforms).map(([pName, pCfg]) => {
+        const idField = pCfg.actor_id
+          ? `<div class="cfg-row"><span class="cfg-key">actor_id</span><span class="cfg-val muted">${pCfg.actor_id}</span></div>`
+          : `<div class="cfg-row"><span class="cfg-key">dataset_id</span><span class="cfg-val muted">${pCfg.dataset_id}</span></div>`;
+        return `
+          <div class="cfg-platform-block">
+            <div class="cfg-platform-label">
+              <span class="cfg-platform-dot" style="background:${platformDotColor(pName)}"></span>
+              ${platformEmoji(pName)} ${pName}
+            </div>
+            ${idField}
+            <div class="cfg-row">
+              <span class="cfg-key">results_limit</span>
+              <span class="cfg-val highlight">${pCfg.results_limit}</span>
+            </div>
+            <div class="cfg-row" style="border:none; padding-bottom:0;">
+              <span class="cfg-key">url_template</span>
+              <span class="cfg-val muted" style="font-size:0.7rem;">${pCfg.url_template}</span>
+            </div>
+          </div>`;
+      }).join('');
+
+      return { name: provName, html: platformBlocks };
+    });
+
+    // Build provider tab UI
+    const tabBtns = providerSections.map((p, i) =>
+      `<button class="cfg-ptab ${i === 0 ? 'active' : ''}" onclick="cfgSwitchProvider('scraper', '${p.name}', this)">${p.name.toUpperCase()}</button>`
+    ).join('');
+
+    const tabPanels = providerSections.map((p, i) =>
+      `<div id="cfg-scraper-provider-${p.name}" class="cfg-scraper-panel" style="display:${i === 0 ? 'block' : 'none'}">${p.html}</div>`
+    ).join('');
+
+    return `
+      <div class="cfg-card">
+        <div class="cfg-card-head">
+          <div class="cfg-card-icon blue">🔍</div>
+          <div>
+            <div class="cfg-card-title">Scraper Config</div>
+            <div class="cfg-card-sub">type: scraper_config · v${doc.version}</div>
+          </div>
+          ${activeTag(doc.is_active)}
+        </div>
+        <div class="cfg-card-body">
+          <div class="cfg-section-title">Global Settings</div>
+          <div class="cfg-row">
+            <span class="cfg-key">default_results_limit</span>
+            <span class="cfg-val highlight">${d.global_settings?.default_results_limit ?? '—'}</span>
+          </div>
+          <div class="cfg-section-title" style="margin-top:1.25rem;">Providers</div>
+          <div class="cfg-provider-tabs">${tabBtns}</div>
+          ${tabPanels}
+        </div>
+        <div class="cfg-updated-bar">🕒 Updated: ${fmtDate(doc.updated_at?.$date || doc.updated_at)}</div>
+      </div>`;
+  }
+
+  function renderScheduleConfig(doc) {
+    const d = doc.data;
+    const interval = d.global_scrape_interval_hours;
+    const overrides = d.per_platform_overrides || {};
+
+    // Generate scrape-time chips for a 24h window
+    const chips = [];
+    for (let h = 0; h < 24; h += interval) {
+      chips.push(`<span class="cfg-hour-chip">${String(h).padStart(2, '0')}:00</span>`);
+    }
+
+    const overrideRows = Object.entries(overrides).map(([p, h]) => `
+      <div class="cfg-row">
+        <span class="cfg-key">${platformEmoji(p)} ${p}</span>
+        <span class="cfg-val highlight">${h}h</span>
+      </div>`).join('');
+
+    return `
+      <div class="cfg-card">
+        <div class="cfg-card-head">
+          <div class="cfg-card-icon green">⏱️</div>
+          <div>
+            <div class="cfg-card-title">Schedule Config</div>
+            <div class="cfg-card-sub">type: schedule_config · v${doc.version}</div>
+          </div>
+          ${activeTag(doc.is_active)}
+        </div>
+        <div class="cfg-card-body">
+          <div class="cfg-section-title">Global Interval</div>
+          <div class="cfg-row">
+            <span class="cfg-key">global_scrape_interval_hours</span>
+            <span class="cfg-val highlight">${interval}h</span>
+          </div>
+          <div class="cfg-section-title">Per-Platform Overrides</div>
+          ${overrideRows}
+          <div class="cfg-section-title">Scrape Times (24h preview)</div>
+          <div class="cfg-schedule-visual">${chips.join('')}</div>
+        </div>
+        <div class="cfg-updated-bar">🕒 Updated: ${fmtDate(doc.updated_at?.$date || doc.updated_at)}</div>
+      </div>`;
+  }
+
+  function renderLLMConfig(doc) {
+    const d = doc.data;
+    const defaultProv = d.default_provider;
+    const providers = d.providers || {};
+
+    const providerCards = Object.entries(providers).map(([provName, pCfg]) => {
+      const isDefault = provName === defaultProv;
+      const gc = pCfg.generation_config || {};
+      const norm = pCfg.normalizer || {};
+      const normGc = norm.generation_config || {};
+      const tempPct = Math.round((gc.temperature ?? 0) * 100);
+      const normTempPct = Math.round((normGc.temperature ?? 0) * 100);
+
+      return `
+        <div id="cfg-llm-provider-${provName}" class="cfg-llm-panel" style="display:none;">
+          <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:1rem; flex-wrap:wrap;">
+            <span class="cfg-model-chip">🤖 ${pCfg.model}</span>
+            ${isDefault ? '<span class="cfg-default-pill">DEFAULT</span>' : ''}
+          </div>
+          <div class="cfg-section-title">Extractor</div>
+          <div class="cfg-row">
+            <span class="cfg-key">temperature</span>
+            <span class="cfg-val highlight">${gc.temperature}</span>
+          </div>
+          <div class="cfg-temp-bar-wrap"><div class="cfg-temp-bar" style="width:${tempPct}%"></div></div>
+          <div class="cfg-row" style="margin-top:0.4rem;">
+            <span class="cfg-key">top_p</span>
+            <span class="cfg-val">${gc.top_p}</span>
+          </div>
+          <div class="cfg-row">
+            <span class="cfg-key">max_output_tokens</span>
+            <span class="cfg-val highlight">${gc.max_output_tokens}</span>
+          </div>
+          <div class="cfg-section-title" style="margin-top:1rem;">Normalizer</div>
+          <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.5rem;">
+            <span class="cfg-model-chip" style="background:rgba(245,158,11,0.12); color:#f59e0b;">⚡ ${norm.model}</span>
+          </div>
+          <div class="cfg-row">
+            <span class="cfg-key">temperature</span>
+            <span class="cfg-val highlight">${normGc.temperature}</span>
+          </div>
+          <div class="cfg-temp-bar-wrap"><div class="cfg-temp-bar" style="width:${normTempPct}%"></div></div>
+          <div class="cfg-row" style="margin-top:0.4rem;">
+            <span class="cfg-key">top_p</span>
+            <span class="cfg-val">${normGc.top_p}</span>
+          </div>
+          <div class="cfg-row">
+            <span class="cfg-key">max_output_tokens</span>
+            <span class="cfg-val highlight">${normGc.max_output_tokens}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    const provNames = Object.keys(providers);
+    const tabBtns = provNames.map((p, i) =>
+      `<button class="cfg-ptab ${i === 0 ? 'active' : ''}" onclick="cfgSwitchProvider('llm', '${p}', this)">${p.toUpperCase()}</button>`
+    ).join('');
+
+    // show first panel by default
+    const firstProv = provNames[0];
+
+    return `
+      <div class="cfg-card">
+        <div class="cfg-card-head">
+          <div class="cfg-card-icon amber">🧠</div>
+          <div>
+            <div class="cfg-card-title">LLM Config</div>
+            <div class="cfg-card-sub">type: llm_config · v${doc.version}</div>
+          </div>
+          ${activeTag(doc.is_active)}
+        </div>
+        <div class="cfg-card-body">
+          <div class="cfg-section-title">Default Provider</div>
+          <div class="cfg-row" style="margin-bottom:1rem;">
+            <span class="cfg-key">default_provider</span>
+            <span class="cfg-val highlight">${defaultProv}</span>
+          </div>
+          <div class="cfg-section-title">Provider Settings</div>
+          <div class="cfg-provider-tabs">${tabBtns}</div>
+          ${providerCards}
+        </div>
+        <div class="cfg-updated-bar">🕒 Updated: ${fmtDate(doc.updated_at?.$date || doc.updated_at)}</div>
+      </div>`;
+  }
+
+  /* ── Provider tab switcher (global fn) ───────────────── */
+  window.cfgSwitchProvider = function (scope, provName, btn) {
+    // Toggle tab buttons within same parent
+    const tabGroup = btn.closest('.cfg-provider-tabs');
+    tabGroup.querySelectorAll('.cfg-ptab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // Toggle panels
+    const panelClass = scope === 'llm' ? 'cfg-llm-panel' : 'cfg-scraper-panel';
+    const card = btn.closest('.cfg-card');
+    card.querySelectorAll('.' + panelClass).forEach(p => p.style.display = 'none');
+    const target = card.querySelector(`#cfg-${scope}-provider-${provName}`);
+    if (target) target.style.display = 'block';
+  };
+
+  /* ── Main load function ───────────────────────────────── */
+  window.loadConfig = async function () {
+    const content = $('cfg-content');
+
+    // Silent refresh if content already populated (interval calls)
+    // Full spinner only on first load
+    if (!content.querySelector('.cfg-grid')) {
+      content.innerHTML = `<div class="cfg-loading">
+        <div class="cfg-loading-spinner"></div>
+        <div style="font-size:0.85rem;">Fetching configuration…</div>
+      </div>`;
+    }
+
+    try {
+      const res = await fetch('/api/dashboard/stats/config');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const configs = await res.json();
+
+      const scraperDoc  = configs.find(c => c.type === 'scraper_config');
+      const scheduleDoc = configs.find(c => c.type === 'schedule_config');
+      const llmDoc      = configs.find(c => c.type === 'llm_config');
+
+      let html = '<div class="cfg-grid">';
+      if (scraperDoc)  html += renderScraperConfig(scraperDoc);
+      if (scheduleDoc) html += renderScheduleConfig(scheduleDoc);
+      if (llmDoc)      html += renderLLMConfig(llmDoc);
+      html += '</div>';
+
+      content.innerHTML = html;
+
+      // Activate first LLM panel
+      if (llmDoc) {
+        const firstLlmProv = Object.keys(llmDoc.data.providers || {})[0];
+        if (firstLlmProv) {
+          const firstPanel = document.getElementById(`cfg-llm-provider-${firstLlmProv}`);
+          if (firstPanel) firstPanel.style.display = 'block';
+        }
+      }
+
+      const now = new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+      const fetched = $('cfg-last-fetched');
+      if (fetched) fetched.textContent = `↻ Auto-refreshed: ${now}`;
+
+    } catch (err) {
+      // Only replace content with error if grid isn't already showing
+      if (!content.querySelector('.cfg-grid')) {
+        content.innerHTML = `
+          <div class="cfg-error-box">
+            <div style="font-size:1.5rem; margin-bottom:0.5rem;">⚠️</div>
+            <strong>Failed to load configuration</strong><br>
+            <span style="font-size:0.75rem; font-family:'JetBrains Mono',monospace; opacity:0.7;">${err.message}</span>
+          </div>`;
+      } else {
+        // Silent fail on interval refresh — just update the timestamp hint
+        const fetched = $('cfg-last-fetched');
+        if (fetched) fetched.textContent = `⚠️ Refresh failed at ${new Date().toLocaleTimeString()}`;
+      }
+    }
+  };
+
+  /* ── Integrate with the global setInterval / loadTabData ─ */
+  // Called by your existing: setInterval(() => { loadTabData(currentTab); }, 30000);
+  // Make sure your loadTabData switch includes:
+  //   case 'config': loadConfig(); break;
+  //
+  // Initial load fires when the tab is first clicked:
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-tab="config"]')) loadConfig();
+  });
+})();
+
+
+
+  </script>
+ </body>
+</html>
