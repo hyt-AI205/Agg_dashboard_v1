@@ -1651,7 +1651,7 @@
             <h3 style="color: white; margin: 0; font-size: 1.1rem; font-weight: 700;">➕ Add Target</h3>
           </div>
           <div style="padding: 1.25rem;">
-            <form method="POST" action="/add">
+            <form onsubmit="addTarget(event)">
               <select name="platform" required style="width: 100%; padding: 0.7rem; margin-bottom: 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-main); color: var(--text-primary); font-size: 0.875rem;">
                 <option value="">Select Platform</option>
                 <option value="tiktok">TikTok</option>
@@ -3124,17 +3124,22 @@ function changePage(delta) {
     fetchTargets(newPage, targetsCurrentSearch, targetsViewFilter);
   }
 }
+// ============================================================================
+// REPLACE these 3 functions + add the addTarget function in dashboard.html
+// ============================================================================
 
-// Toggle target
+// Toggle target (pause / resume)
 async function toggleTarget(encodedValue, willBeActive) {
   if (!confirm(willBeActive ? 'Resume this target?' : 'Pause this target?')) return;
 
   try {
-    const response = await fetch('/toggle/' + encodedValue, { method: 'POST' });
-    if (response.ok) {
+    const response = await fetch('/api/targets/' + encodedValue + '/toggle', { method: 'POST' });
+    const data = await response.json();
+
+    if (response.ok && data.success) {
       fetchTargets(targetsCurrentPage, targetsCurrentSearch, targetsViewFilter);
     } else {
-      alert('Failed to update status');
+      alert('Failed to update status: ' + (data.message || response.status));
     }
   } catch (e) {
     console.error(e);
@@ -3147,15 +3152,63 @@ async function deleteTarget(encodedValue) {
   if (!confirm('Permanently delete this target?\nThis cannot be undone.')) return;
 
   try {
-    const response = await fetch('/delete/' + encodedValue, { method: 'DELETE' });
-    if (response.ok) {
+    const response = await fetch('/api/targets/' + encodedValue, { method: 'DELETE' });
+    const data = await response.json();
+
+    if (response.ok && data.success) {
       fetchTargets(targetsCurrentPage, targetsCurrentSearch, targetsViewFilter);
     } else {
-      alert('Failed to delete');
+      alert('Failed to delete: ' + (data.message || response.status));
     }
   } catch (e) {
     console.error(e);
     alert('Network error');
+  }
+}
+
+// Add target — call this from your form's submit handler (replaces the old HTML form POST /add)
+// Wire it up like:  <form onsubmit="addTarget(event)"> ... </form>
+async function addTarget(event) {
+  event.preventDefault();  // prevent full page reload
+
+  const form = event.target;
+  const formData = new FormData(form);
+
+  // Show some loading feedback
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const originalText = submitBtn ? submitBtn.textContent : null;
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Adding…'; }
+
+  try {
+    const response = await fetch('/api/targets', {
+      method: 'POST',
+      body: formData   // FormData sends as multipart/form-data, FastAPI Form() accepts it
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      // Clear the form and refresh the list
+      form.reset();
+      // Switch view filter to 'active' so user sees the newly added target
+      targetsViewFilter = 'active';
+      const activeRadio = document.querySelector('#targets-tab input[name="viewFilter"][value="active"]');
+      if (activeRadio) activeRadio.checked = true;
+      const viewTitle = document.getElementById('view-title');
+      if (viewTitle) viewTitle.textContent = 'Active Targets';
+
+      targetsCurrentPage = 1;
+      fetchTargets(1, '', 'active');
+
+      // Brief success flash (optional — remove if you have a toast system)
+      alert(data.message);
+    } else {
+      alert(data.message || 'Failed to add target');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Network error — could not add target');
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalText; }
   }
 }
 

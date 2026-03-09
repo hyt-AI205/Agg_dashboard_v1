@@ -1,7 +1,11 @@
 import pymongo
 from datetime import datetime
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
+# mongo_uri = os.getenv("MONGODB_URI")
 ###################
 # 1. MongoDB as a Central Source of Truth
 # Profiles are stored in a structured, queryable format.
@@ -10,18 +14,19 @@ from datetime import datetime
 #
 # Enables audit trails, versioning, and analytics.
 ######################
-
 class ScrapeTargetStore:
-    def __init__(self, mongo_uri="mongodb://localhost:27017", db_name="social_scraper"):
-        # Add timeouts to prevent hanging
+    def __init__(self, mongo_uri: str = None, db_name: str = "social_scraper"):
+        uri = mongo_uri or os.getenv("MONGO_URI")
+        if not uri:
+            raise ValueError("MONGO_URI is not set — add it to your .env file")
+
         self.client = pymongo.MongoClient(
-            mongo_uri,
-            serverSelectionTimeoutMS=2000,  # 2 second timeout for server selection
-            connectTimeoutMS=2000,  # 2 second timeout for connection
-            socketTimeoutMS=2000  # 2 second timeout for socket operations
+            uri,
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=10000,
         )
 
-        # Test connection immediately
         try:
             self.client.server_info()
             print("✓ MongoDB connection verified")
@@ -32,11 +37,11 @@ class ScrapeTargetStore:
         self.db = self.client[db_name]
         self.collection = self.db["scrape_targets"]
 
-        # Create unique compound index
         self.collection.create_index(
             [("platform", pymongo.ASCENDING), ("target_type", pymongo.ASCENDING), ("value", pymongo.ASCENDING)],
-            unique=True
+            unique=True,
         )
+
 
     def add_target(self, platform: str, target_type: str, value: str, added_by: str = "admin"):
         """

@@ -1,9 +1,16 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Form, Response
+from fastapi.responses import JSONResponse
 from datetime import datetime, timedelta
 from typing import Optional
 import pymongo
 import os
+import urllib.parse
 from collections import defaultdict
+import os
+from dotenv import load_dotenv
+
+load_dotenv()  # loads .env from the project root
+
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -12,27 +19,31 @@ dashboard_service = None
 
 
 class DashboardService:
-    def __init__(self, mongo_uri=os.getenv("MONGODB_URI")):
+    def __init__(self, mongo_uri: str = None):
         self.connected = False
         try:
+            uri = mongo_uri or os.getenv("MONGO_URI")
+            if not uri:
+                raise ValueError("MONGO_URI is not set — add it to your .env file")
+
             self.client = pymongo.MongoClient(
-                mongo_uri,
+                uri,
                 serverSelectionTimeoutMS=2000,
                 connectTimeoutMS=2000,
-                socketTimeoutMS=2000
+                socketTimeoutMS=2000,
             )
 
             # Test connection
             self.client.server_info()
 
-            self.social_scraper_db = self.client["social_scraper"]
-            self.offer_insights_db = self.client["offer_insights"]
+            self.social_scraper_db  = self.client["social_scraper"]
+            self.offer_insights_db  = self.client["offer_insights"]
 
             # Collections
-            self.raw_data_collection = self.social_scraper_db["raw_social_data"]
-            self.offers_collection = self.offer_insights_db["offers"]
-            self.targets_collection = self.social_scraper_db["scrape_targets"]
-            self.system_config_collection = self.social_scraper_db["system_config"]  # ← NEW
+            self.raw_data_collection    = self.social_scraper_db["raw_social_data"]
+            self.offers_collection      = self.offer_insights_db["offers"]
+            self.targets_collection     = self.social_scraper_db["scrape_targets"]
+            self.system_config_collection = self.social_scraper_db["system_config"]
 
             self.connected = True
             print("✓ Dashboard MongoDB connection successful")
@@ -41,6 +52,7 @@ class DashboardService:
             print(f"✗ Dashboard MongoDB connection failed: {e}")
             print("  Dashboard will use mock data")
             self.connected = False
+
 
     def get_time_filter(self, time_range: str):
         """Generate MongoDB time filter based on range"""
@@ -124,7 +136,7 @@ class DashboardService:
 
             # Total posts in time range from raw_social_data
             total_posts = self.raw_data_collection.count_documents(time_filter)
-            print(f"total_posts: {total_posts}")
+            # print(f"total_posts: {total_posts}")
 
             # Total VALID offers in time range from offers collection
             offer_filter = {
@@ -133,7 +145,7 @@ class DashboardService:
                 "confidence_score": {"$gt": 0.8}
             }
             total_offers = self.offers_collection.count_documents(offer_filter)
-            print(f"total_offers (valid): {total_offers}")
+            # print(f"total_offers (valid): {total_offers}")
 
             # Active profiles (from scrape_targets)
             active_profiles = self.targets_collection.count_documents({"active": True})
@@ -491,7 +503,7 @@ class DashboardService:
             results = self.offers_collection.aggregate(pipeline)
             breakdown = {doc["_id"]: doc["count"] for doc in results if doc["_id"]}
 
-            print(f"Country breakdown (normalized): {breakdown}")
+            # print(f"Country breakdown (normalized): {breakdown}")
             return breakdown
 
         except Exception as e:
@@ -666,7 +678,7 @@ class DashboardService:
             results = self.offers_collection.aggregate(pipeline)
             breakdown = {doc["_id"]: doc["count"] for doc in results if doc["_id"]}
 
-            print(f"Offer type breakdown: {breakdown}")
+            # print(f"Offer type breakdown: {breakdown}")
             return breakdown
 
         except Exception as e:
@@ -1581,3 +1593,156 @@ async def get_system_health():
             "mode": "error",
             "error": str(e)
         }
+
+# ============================================================================
+# TARGETS ROUTER — /api/targets  (add / toggle / delete)
+# Lives here so all API logic is co-located; main.py only handles page serving.
+# ============================================================================
+
+targets_router = APIRouter(prefix="/api", tags=["targets"])
+
+# Shared reference to the store — injected by main.py at startup
+_store = None
+_mongodb_available = False
+
+
+def init_targets_store(store, available: bool):
+    """Called once from main.py after the store is created."""
+    global _store, _mongodb_available
+    _store = store
+    _mongodb_available = available
+
+
+@targets_router.get("/targets")
+async def get_targets(
+    search: str = Query("", description="Search by username or platform"),
+    view_filter: str = Query("active", description="'active' | 'inactive' | 'all'"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=10, le=200),
+):
+    """Paginated, searchable list of scrape targets."""
+    if not _mongodb_available or _store is None:
+        return JSONResponse({
+            "targets": [], "total": 0, "page": page,
+            "limit": limit, "total_pages": 1, "has_more": False
+        })
+
+    try:
+        query_filter = {}
+        if view_filter == "active":
+            query_filter["active"] = True
+        elif view_filter == "inactive":
+            query_filter["active"] = False
+
+        if search.strip():
+            query_filter["$or"] = [
+                {"value": {"$regex": search, "$options": "i"}},
+                {"platform": {"$regex": search, "$options": "i"}},
+            ]
+
+        total = _store.collection.count_documents(query_filter)
+        skip = (page - 1) * limit
+        total_pages = max(1, (total + limit - 1) // limit)
+
+        targets = list(
+            _store.collection.find(query_filter, {"_id": 0})
+            .sort("added_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+
+        for t in targets:
+            for field in ("added_at", "last_scraped"):
+                if field in t and t[field]:
+                    t[field] = t[field].isoformat()
+
+        return JSONResponse({
+            "targets": targets, "total": total, "page": page,
+            "limit": limit, "total_pages": total_pages,
+            "has_more": page < total_pages,
+        })
+
+    except Exception as e:
+        print(f"[targets] query failed: {e}")
+        return JSONResponse({"error": str(e), "targets": [], "total": 0,
+                             "page": page, "limit": limit, "total_pages": 0},
+                            status_code=500)
+
+
+@targets_router.post("/targets")
+async def add_target(platform: str = Form(...), target: str = Form(...)):
+    """
+    Add a new scrape target.
+    Returns JSON so the frontend can stay on the Targets tab — no page reload.
+    """
+    if not _mongodb_available or _store is None:
+        return JSONResponse(
+            {"success": False, "message": "⚠️ Database not available — running in view-only mode"},
+            status_code=503,
+        )
+
+    try:
+        existing = _store.collection.find_one({"value": target, "platform": platform})
+        if existing:
+            status = "active" if existing.get("active", True) else "paused"
+            return JSONResponse(
+                {"success": False,
+                 "message": f"⚠️ '{target}' already exists on {platform} (status: {status})"},
+                status_code=409,
+            )
+
+        _store.add_target(
+            platform=platform,
+            target_type="profile",
+            value=target,
+            added_by="user",
+        )
+        return JSONResponse(
+            {"success": True, "message": f"✓ Added {target} on {platform}"},
+            status_code=201,
+        )
+
+    except Exception as e:
+        print(f"[targets] add failed: {e}")
+        return JSONResponse({"success": False, "message": f"✗ Error: {e}"}, status_code=500)
+
+
+@targets_router.post("/targets/{value}/toggle")
+async def toggle_target(value: str):
+    """Toggle active/paused status for a target."""
+    if not _mongodb_available or _store is None:
+        return JSONResponse({"success": False, "message": "DB unavailable"}, status_code=503)
+
+    try:
+        value = urllib.parse.unquote(value)
+        doc = _store.collection.find_one({"value": value})
+        if not doc:
+            return JSONResponse({"success": False, "message": "Target not found"}, status_code=404)
+
+        new_status = not doc.get("active", True)
+        _store.collection.update_one({"value": value}, {"$set": {"active": new_status}})
+        label = "active" if new_status else "paused"
+        return JSONResponse({"success": True, "active": new_status,
+                             "message": f"Target is now {label}"})
+
+    except Exception as e:
+        print(f"[targets] toggle failed: {e}")
+        return JSONResponse({"success": False, "message": str(e)}, status_code=500)
+
+
+@targets_router.delete("/targets/{value}")
+async def delete_target(value: str):
+    """Permanently remove a target from the database."""
+    if not _mongodb_available or _store is None:
+        return JSONResponse({"success": False, "message": "DB unavailable"}, status_code=503)
+
+    try:
+        value = urllib.parse.unquote(value)
+        result = _store.collection.delete_one({"value": value})
+        if result.deleted_count:
+            return JSONResponse({"success": True, "message": f"Deleted {value}"})
+        return JSONResponse({"success": False, "message": "Target not found"}, status_code=404)
+
+    except Exception as e:
+        print(f"[targets] delete failed: {e}")
+        return JSONResponse({"success": False, "message": str(e)}, status_code=500)
